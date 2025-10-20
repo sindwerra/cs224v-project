@@ -1,4 +1,4 @@
-# Week 5 Update (Due Mon 10/20, 3pm)
+# Week 5 Update 
 
 - Mentor: Arjun Jain (Slack preferred)
 - Advisor: Harshit Joshi; 
