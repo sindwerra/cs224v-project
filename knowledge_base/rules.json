@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "source": "KnowledgeBase/Heart Failure Medication Titration Protocol.md",
+    "version": "v0.1",
+    "updated": "2025-10-28"
+  },
+  "thresholds": {
+    "blood_pressure": {
+      "titration_range": {"sbp_min": 80, "dbp_min": 40, "sbp_max": 200, "dbp_max": 110},
+      "goal_range": {"sbp_min": 90, "dbp_min": 50, "sbp_max": 120, "dbp_max": 80}
+    },
+    "heart_rate": {
+      "titration_min": 50,
+      "goal_range": {"min": 55, "max": 90}
+    }
+  },
+  "monitoring": {
+    "baseline": ["BMP", "creatinine", "eGFR"],
+    "after_change": {
+      "aldosterone_antagonists": "1-2w BMP, K+, Cr",
+      "acei_arb_arnI": "1-2w BMP, Cr, eGFR",
+      "beta_blocker": "2-4w (if renal/electrolyte concerns)",
+      "sglt2": "2-4w BMP, Cr, eGFR",
+      "sgc": "2-4w BMP, hemoglobin",
+      "hydralazine_nitrates": "as needed unless concerns"
+    },
+    "ongoing": "as needed; more frequently with baseline abnormalities or acute illness"
+  },
+  "red_flags": [
+    {"id": "symptomatic_hypotension", "criteria": {"sbp_lt": 90, "symptoms_any": ["dizziness", "syncope", "lightheadedness"]}, "action": "escalate_immediately"},
+    {"id": "severe_hypotension", "criteria": {"sbp_lt": 80}, "action": "escalate_immediately"},
+    {"id": "hyperkalemia_moderate", "criteria": {"potassium_gt": 5.5}, "action": "hold_adjust_related_agents"},
+    {"id": "hyperkalemia_severe", "criteria": {"potassium_gte": 6.0}, "action": "discontinue_related_agents"},
+    {"id": "creatinine_rise", "criteria": {"creatinine_increase_pct_gt": 30}, "action": "hold_and_reassess_1_2w"},
+    {"id": "egfr_critical", "criteria": {"egfr_lt": 20}, "action": "consider_discontinue_or_avoid"},
+    {"id": "bradycardia", "criteria": {"hr_lt": 50}, "action": "hold_beta_blocker"},
+    {"id": "bradycardia_severe", "criteria": {"hr_lt": 45}, "action": "hold_or_discontinue_beta_blocker"},
+    {"id": "sbp_low_bb", "criteria": {"sbp_lt": 85, "symptoms": true}, "action": "hold_or_reduce_beta_blocker"}
+  ],
+  "medication_rules": {
+    "acei": {
+      "contraindications": ["angioedema_history", "bilateral_renal_artery_stenosis", "pregnancy", "aliskiren_in_diabetes", "recent_neprilysin_inhibitor_lt_48h"],
+      "hold_or_adjust": [
+        {"when": "potassium_gt_5_5"},
+        {"when": "creatinine_increase_pct_gt_30"},
+        {"when": "egfr_lt_20_30"},
+        {"when": "symptomatic_hypotension_sbp_lt_80_90"}
+      ]
+    },
+    "arb": {
+      "contraindications": ["angioedema_history", "bilateral_renal_artery_stenosis", "pregnancy", "aliskiren_in_diabetes", "recent_neprilysin_inhibitor_lt_48h"],
+      "hold_or_adjust": [
+        {"when": "potassium_gt_5_5"},
+        {"when": "creatinine_increase_pct_gt_30"},
+        {"when": "egfr_lt_20_30"},
+        {"when": "symptomatic_hypotension_sbp_lt_80_90"}
+      ]
+    },
+    "arni": {
+      "contraindications": ["angioedema_history", "concurrent_acei", "pregnancy", "severe_hepatic_impairment"],
+      "initiation_wait_after_acei_hours": 48,
+      "hold_or_adjust": [
+        {"when": "potassium_gt_5_5"},
+        {"when": "creatinine_increase_pct_gt_30"},
+        {"when": "egfr_lt_20"},
+        {"when": "symptomatic_hypotension_sbp_lt_80_90"}
+      ]
+    },
+    "mra": {
+      "contraindications": ["baseline_potassium_gt_5_0", "egfr_lt_30", "strong_cyp3a4_inhibitors_eplerenone", "addisons_disease", "hyperkalemia"],
+      "hold_or_adjust": [
+        {"when": "potassium_gt_5_5"},
+        {"when": "potassium_gt_6_0", "action": "discontinue"},
+        {"when": "creatinine_increase_pct_gt_30_or_egfr_lt_30"},
+        {"when": "symptomatic_hypotension"}
+      ]
+    },
+    "beta_blocker": {
+      "contraindications": ["symptomatic_bradycardia_hr_lt_50", "advanced_av_block_no_pacemaker", "sick_sinus_no_pacemaker", "severe_decompensated_hf_inotrope", "severe_asthma_bronchospasm", "cardiogenic_shock"],
+      "hold_or_adjust": [
+        {"when": "hr_lt_50"},
+        {"when": "hr_lt_45", "action": "hold_or_discontinue"},
+        {"when": "symptomatic_bradycardia"},
+        {"when": "develops_av_block", "action": "discontinue"},
+        {"when": "sbp_lt_85_with_symptoms"},
+        {"when": "acute_decompensated_hf", "action": "temporary_hold"},
+        {"when": "severe_bronchospasm", "action": "discontinue"}
+      ]
+    },
+    "hydralazine_isosorbide": {
+      "contraindications": ["severe_hypotension", "concurrent_pde5_with_nitrates", "recent_mi_nitrate", "drug_induced_lupus"],
+      "hold_or_adjust": [
+        {"when": "sbp_lt_85_90_with_symptoms"},
+        {"when": "symptomatic_hypotension_or_orthostasis"},
+        {"when": "drug_induced_lupus"},
+        {"when": "severe_headache_intolerant"},
+        {"when": "severe_tachycardia_hr_gt_110_120"}
+      ]
+    },
+    "sglt2": {
+      "contraindications": ["egfr_lt_20_dapa_empa", "egfr_lt_25_sota", "type1_diabetes_relative", "history_dka", "dialysis"],
+      "hold_or_adjust": [
+        {"when": "egfr_falls_lt_20_25"},
+        {"when": "dka_or_euglycemic_dka", "action": "discontinue"},
+        {"when": "severe_dehydration_or_volume_depletion"},
+        {"when": "recurrent_uti_or_genital_infection"},
+        {"when": "fournier_gangrene", "action": "discontinue_immediately"},
+        {"when": "aki", "action": "temporary_hold"}
+      ]
+    },
+    "sgc": {
+      "contraindications": ["concurrent_pde5", "pregnancy", "severe_hepatic_impairment"],
+      "hold_or_adjust": [
+        {"when": "sbp_lt_90_with_symptoms"},
+        {"when": "symptomatic_hypotension"},
+        {"when": "need_for_pde5"},
+        {"when": "worsening_anemia"}
+      ]
+    }
+  },
+  "strategy_options": ["single", "multiple_order", "multiple_alternating"]
+}
+
+
