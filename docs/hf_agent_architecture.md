@@ -1,6 +1,6 @@
 # HF-Agent Architecture (Worksheets + Async Physician Loop)
 
-This document summarizes the end-to-end design we aligned on and provides visual diagrams you can include in slides or reports.
+This document summarizes the end-to-end design we aligned on and provides visual diagrams you can include in slides or reports. Implementation note: we plan to use the OpenAI Agent SDK for runtime and MongoDB for persistence. The high-level workflow, safety gates, and versioning do not change.
 
 ## Conceptual Phases
 - Phase 1: Patient → Agent Intake (async persisted)
@@ -28,14 +28,14 @@ stateDiagram-v2
 ```
 
 Notes
-- You can keep Worksheets minimal: `Intake` and `Recommendation` (optional `Escalation` and `Communicate`). PhysicianReview can be a physician-facing entry to write Recommendation.
+- If using OpenAI Agent SDK, treat these as agent steps/tools rather than worksheets: Intake (collect + risk), PhysicianReview (MD input surface), Recommendation (persist plan), Communicate (patient-facing summary), Escalation (safety instructions). The control flow and persistence are unchanged.
 
 ## Async Event Timeline
 ```mermaid
 sequenceDiagram
     participant P as Patient
     participant A as Agent
-    participant DB as Genie DB
+    participant DB as MongoDB
     participant MD as Physician
 
     P->>A: Provide vitals/labs/meds/symptoms
@@ -51,6 +51,7 @@ sequenceDiagram
 ```
 
 ## Data Model (minimal)
+Logical model below remains the same; in MongoDB this maps to collections.
 ```mermaid
 erDiagram
     PATIENTS ||--o{ EPISODES : has
@@ -97,6 +98,24 @@ flowchart LR
     I -->|high-risk| E --> C
 ```
 
+## MongoDB Collections & Indexing (implementation note)
+- Collections
+  - `patients`: `{ _id: patient_id, demographics, created_at }`
+  - `episodes`: `{ _id: episode_id, patient_id, state_version, patient_state, risk_level, risk_flags, status, created_at, updated_at }`
+  - `recommendations`: `{ _id: rec_id, episode_id, plan, based_on_state_version, status, created_at }`
+  - `messages` (optional): `{ _id, episode_id, role, content, ts }` to store raw logs and structured turns
+- Write pattern
+  - Upsert `episodes` on Intake completion using a deterministic `episode_id` (or server-generated) and increment `state_version`.
+  - Insert `recommendations` with `based_on_state_version`; reject/flag if `episodes.state_version` has advanced when applying.
+  - Append conversation turns into `messages` for audit.
+- Indexes
+  - `episodes`: `{ patient_id: 1, created_at: -1 }`, `{ status: 1 }`
+  - `recommendations`: `{ episode_id: 1, created_at: -1 }`
+  - `messages`: `{ episode_id: 1, ts: -1 }`
+- Idempotency & concurrency
+  - Include an `idempotency_key` on writes where appropriate; on conflicts, return the previously written document.
+  - Use `based_on_state_version` to prevent stale plans after a newer Intake.
+
 ## KB Red-Flags (from protocol)
 - Hypotension: SBP < 80 (severe) or SBP < 90 with symptoms (dizziness/syncope)
 - Hyperkalemia: K+ ≥ 6.0 (severe); > 5.5 (moderate → hold/adjust)
@@ -116,4 +135,3 @@ flowchart LR
 ## What to Build Next
 - A minimal physician-entry UI (or worksheet) to submit Recommendation for a given episode.
 - A small job that changes Episode.status from `pending_doctor` → `communicated` when plan is sent.
-- Export these Mermaid diagrams to PNG/SVG for slides.
