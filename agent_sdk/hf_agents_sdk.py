@@ -24,16 +24,17 @@ except Exception:
     Runner = object  # type: ignore
 
 from .red_flags import evaluate_red_flags, to_structured_state
+# Try to import real Mongo-backed functions; fallback to no-ops if unavailable
+try:
+    from .mongo_store import save_episode as save_episode_stub, append_message as append_message_stub  # type: ignore
+except Exception:
+    def save_episode_stub(payload: Dict[str, Any]) -> None:  # type: ignore
+        return
+    def append_message_stub(episode_id: str, message: Dict[str, Any]) -> None:  # type: ignore
+        return
 
 
-def save_episode_stub(payload: Dict[str, Any]) -> None:
-    _ = payload
-    return
-
-
-def append_message_stub(episode_id: str, message: Dict[str, Any]) -> None:
-    _ = (episode_id, message)
-    return
+ # (stubs potentially overridden by mongo_store above)
 
 
 class MedItem(BaseModel):
@@ -89,13 +90,25 @@ def build_hf_agent() -> Agent:
         instructions=(
             "You are a heart failure medication assistant. "
             "Collect vitals/labs/symptoms/meds. "
-            # "When the key fields are present, use the tool risk_evaluator_tool to screen for red-flags "
-            # "(e.g., SBP<80, SBP<90 with symptoms, K+>=6.0, eGFR<20, HR<50). "
-            # "If high-risk, warn and stop titration; otherwise, confirm that the case will be sent to the physician."
+            "When the key fields are present, use the tool risk_evaluator_tool to screen for red-flags "
+            "(e.g., SBP<80, SBP<90 with symptoms, K+>=6.0, eGFR<20, HR<50). "
+            "If high-risk, warn and stop titration; otherwise, confirm that the case will be sent to the physician."
         ),
         tools=[risk_evaluator_tool],
     )
-    return agent
+
+    main_agent = Agent(
+        name="Main Agent",
+        instructions=RECOMMENDED_PROMPT_PREFIX,
+        handoffs=[agent],
+        handoff_description=(
+            "Handoff to the relevant agent for queries where we need additional information "
+            "from the web or internal docs, or when we need to make calculations."
+        ),
+        tools=[],
+    )
+
+    return main_agent
 
 
 async def run_once(input_text: str, flat_fields: Dict[str, Any]) -> Dict[str, Any]:
