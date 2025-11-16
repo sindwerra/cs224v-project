@@ -1,7 +1,45 @@
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 
 from database import HFAgentDatabase, generate_user_id, validate_email, validate_date
+from agent import Agent
+
+def display_chat_history(messages):
+    """Display chat history with user and agent messages clearly separated"""
+    if not messages:
+        print("\n--- No previous messages ---")
+        return
+    
+    print("\n" + "="*60)
+    print("Chat History")
+    print("="*60)
+    
+    for i, msg in enumerate(messages, 1):
+        user_text = msg.get('user', {}).get('text', '')
+        assistant_text = msg.get('assistant', {}).get('text', '')
+        user_ts = msg.get('user', {}).get('ts', '')
+        assistant_ts = msg.get('assistant', {}).get('ts', '')
+        
+        # Format timestamp
+        if isinstance(user_ts, datetime):
+            user_time = user_ts.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            user_time = str(user_ts)
+        
+        print(f"\n--- Message {i} ---")
+        print(f"\n[USER] ({user_time})")
+        print(f"  {user_text}")
+        
+        if assistant_text:
+            if isinstance(assistant_ts, datetime):
+                assistant_time = assistant_ts.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                assistant_time = str(assistant_ts)
+            
+            model = msg.get('assistant', {}).get('meta', {}).get('model', 'unknown')
+            print(f"\n[AGENT] ({assistant_time}) [Model: {model}]")
+            print(f"  {assistant_text}")
 
 def prompt_user_profile(email):
     """Prompt user for profile information"""
@@ -67,6 +105,7 @@ def main():
     # Test connection
     db.ping()
     
+    # CLI
     print("\n" + "="*60)
     print("HF Agent CLI")
     print("="*60)
@@ -85,6 +124,7 @@ def main():
         print(f"\n✓ Welcome back, {user['profile']['name']}!")
         print(f"  User ID: {user['_id']}")
         print(f"  Role: {user['role']}")
+        user_id = user['_id']
     else:
         print(f"\n✗ No user found with email: {email}")
         create_profile = input("\nWould you like to create a new user profile? (yes/no): ").strip().lower()
@@ -122,8 +162,61 @@ def main():
                 print(f"  Role: {profile_data['role']}")
             except Exception as e:
                 print(f"\n✗ Error creating user: {e}")
+                return
         else:
             print("\nUser profile creation cancelled.")
+            return
+    
+    # Load and display chat history
+    messages = db.get_messages_by_user(user_id)
+    display_chat_history(messages)
+    
+    # Initialize agent
+    agent = Agent(model="placeholder-model-v1")
+    
+    # Conversation loop
+    print("\n" + "="*60)
+    print("Conversation")
+    print("="*60)
+    print("\nType your message (or 'exit'/'quit' to end conversation):")
+    
+    while True:
+        # User input
+        user_query = input("\n[YOU] ").strip()
+        
+        # Check for exit commands
+        if user_query.lower() in ['exit', 'quit', 'q']:
+            print("\n✓ Conversation ended. Goodbye!")
+            break
+        
+        if not user_query:
+            print("Please enter a message or type 'exit' to quit.")
+            continue
+        
+        # Generate agent response
+        try:
+            assistant_response = agent.generate_response(user_query)
+            
+            # Save message to database (both user and assistant)
+            try:
+                db.create_message(
+                    user_id=user_id,
+                    user_text=user_query,
+                    assistant_text=assistant_response,
+                    model=agent.get_model()
+                )
+                
+                # Display the exchange
+                print(f"\n[AGENT] [Model: {agent.get_model()}]")
+                print(f"  {assistant_response}")
+            except Exception as e:
+                print(f"\n✗ Error saving message: {e}")
+                # Still display the response even if saving fails
+                print(f"\n[AGENT] [Model: {agent.get_model()}]")
+                print(f"  {assistant_response}")
+        except Exception as e:
+            print(f"\n✗ Error generating response: {e}")
+            continue
 
 if __name__ == "__main__":
     main()
