@@ -15,8 +15,9 @@ from dotenv import load_dotenv
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
-import uuid
+import json
 import os
+import uuid
 
 # SDK imports (soft dependency)
 try:
@@ -31,7 +32,14 @@ except Exception:
     Runner = object  # type: ignore
 
 from .red_flags import evaluate_red_flags, to_structured_state
-from database import HFAgentDatabase
+from database import HFAgentDatabase, generate_user_id
+try:
+    import openai  # type: ignore
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
 _db_instance: Optional[HFAgentDatabase] = None
@@ -48,6 +56,82 @@ def get_db() -> Optional[HFAgentDatabase]:
     print(mongodb_uri)
     _db_instance = HFAgentDatabase(mongodb_uri)
     return _db_instance
+
+
+def _normalize_number(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except (ValueError, TypeError):
+        return None
+
+
+def _normalize_state(raw: Dict[str, Any]) -> Dict[str, Any]:
+    vitals = raw.get("vitals") or {}
+    labs = raw.get("labs") or {}
+    return {
+        "vitals": {
+            "sbp": _normalize_number(vitals.get("sbp")),
+            "dbp": _normalize_number(vitals.get("dbp")),
+            "hr": _normalize_number(vitals.get("hr")),
+        },
+        "labs": {
+            "creatinine_mg_dl": _normalize_number(labs.get("creatinine_mg_dl")),
+            "egfr": _normalize_number(labs.get("egfr")),
+            "potassium_mmol_l": _normalize_number(labs.get("potassium_mmol_l")),
+        },
+        "symptoms": raw.get("symptoms") or [],
+        "meds": raw.get("meds") or [],
+        "adherence": raw.get("adherence"),
+    }
+
+
+def _build_messages_payload(messages: List[Dict[str, Any]]) -> str:
+    payload_lines = []
+    for msg in messages[:20]:
+        role = "user" if msg.get("user", {}).get("text") else "assistant"
+        text = msg.get(role, {}).get("text", "")
+        ts = msg.get(role, {}).get("ts", "")
+        payload_lines.append(f"{role.title()} ({ts}): {text}")
+    return "\n".join(payload_lines)
+
+
+def extract_patient_state_from_messages(messages: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not messages:
+        return None
+    ordered = sorted(messages, key=lambda m: m.get("created_at", datetime.min), reverse=True)
+    payload = _build_messages_payload(ordered)
+    if not payload:
+        return None
+
+    load_dotenv()
+    if OPENAI_AVAILABLE and os.getenv("OPENAI_API_KEY"):
+        system_prompt = (
+            "You are a concise clinical summarizer. "
+            "Given a conversation transcript (most recent first), output only JSON with keys "
+            "`vitals`, `labs`, `symptoms`, `meds`, `adherence`. "
+            "Each key should map to the latest reported value. Example:\n"
+            '{"vitals":{"sbp":110,"dbp":70,"hr":64},"labs":{"creatinine_mg_dl":1.2,"egfr":55,"potassium_mmol_l":4.5},"symptoms":["fatigue"],"meds":[{"name":"lisinopril","dose":"20mg"}],"adherence":"good"}'
+        )
+        user_prompt = f"Conversation:\n{payload}\nReturn the JSON described above."
+        try:
+            response = openai.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0,
+            )
+            content = response.choices[0].message.content
+            parsed = json.loads(content.strip())
+            return _normalize_state(parsed)
+        except Exception as e:
+            print(e)
+    return None
 
  # (stubs potentially overridden by mongo_store above)
 
@@ -108,23 +192,21 @@ def patient_context_tool(
     db = get_db()
     patient_doc: Optional[PatientDoc] = None
 
+    latest_state = None
     if db and patient_id:
         existing_user = db.get_user(patient_id)
         if existing_user:
+            messages = db.get_messages_by_user(patient_id)
+            latest_state = extract_patient_state_from_messages(messages)
             patient_doc = PatientDoc(
                 patient_id=existing_user["_id"],
                 demographics=PatientDemographics(name=existing_user["profile"]["name"]),
                 created_at=str(existing_user.get("created_at", now)),
                 updated_at=now,
-                latest_patient_state={
-                    "vitals": {"sbp": 112, "dbp": 72, "hr": 66, "weight_kg": 78.0},
-                    "labs": {"creatinine_mg_dl": 1.1, "egfr": 58, "potassium_mmol_l": 4.4},
-                    "symptoms": [],
-                    "meds": [{"name": "sacubitril/valsartan", "dose": "49/51mg bid"}],
-                },
+                latest_patient_state=latest_state,
             )
     if patient_doc is None:
-        new_id = patient_id or f"P_{uuid.uuid4().hex[:8].upper()}"
+        new_id = patient_id or generate_user_id()
         profile = {"name": name or "New Patient", "dob": "", "sex": ""}
         contact = {"phone": "", "email": ""}
         patient_doc = PatientDoc(
@@ -152,9 +234,6 @@ def patient_context_tool(
 @function_tool(name_override="risk_evaluator_tool")
 def risk_evaluator_tool(
     wrapper: RunContextWrapper[AgentContext],
-    # vitals_sbp: Optional[float] = None,
-    # vitals_dbp: Optional[float] = None,
-    # vitals_hr: Optional[float] = None,
     vitals_sbp: float,
     vitals_dbp: float,
     vitals_hr: float,
@@ -210,10 +289,13 @@ def build_hf_agent() -> Agent:
         name="hf_intake_agent",
         instructions=(
             "You are a heart failure medication assistant. "
-            "Collect vitals/labs/symptoms/meds. "
-            "When the key fields are present, use the tool risk_evaluator_tool to screen for red-flags "
+            "Start by checking whether patient_context_tool has already provided a latest_patient_state summary. "
+            "If such context is available, acknowledge the existing metrics first, then only ask for missing updates "
+            "before calling risk_evaluator_tool. "
+            "If no context exists, collect vitals/labs/symptoms/meds as usual. "
+            "When the required fields are gathered, call risk_evaluator_tool for red-flag screening "
             "(e.g., SBP<80, SBP<90 with symptoms, K+>=6.0, eGFR<20, HR<50). "
-            "If high-risk, warn and stop titration; otherwise, confirm that the case will be sent to the physician."
+            "If high-risk, warn and pause titration; otherwise, explain that the case will be sent to the physician."
         ),
         tools=[risk_evaluator_tool],
     )

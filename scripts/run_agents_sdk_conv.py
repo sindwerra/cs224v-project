@@ -9,7 +9,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from agents import Agent, Tool, Runner, function_tool, SQLiteSession
-from agent_sdk.hf_agents_sdk import build_hf_agent, AgentContext
+from agent_sdk.hf_agents_sdk import build_hf_agent, AgentContext, get_db
 
 
 async def run_conv():
@@ -29,7 +29,6 @@ async def run_conv():
 
     while True:
         user_input = input("You: ")
-        # print("You: " + user_input)
         
         if user_input == "exit":
             print("Goodbye!")
@@ -41,6 +40,17 @@ async def run_conv():
             context=agent_context,
         )
         print(f"Agent: {result.final_output}")
+        db = get_db()
+        if db and agent_context.patient_doc:
+            try:
+                db.create_message(
+                    user_id=agent_context.patient_doc.patient_id,
+                    user_text=user_input,
+                    assistant_text=result.final_output or "",
+                    model=agent.model,
+                )
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
