@@ -11,10 +11,12 @@ Docs reference:
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Literal
+from dotenv import load_dotenv
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 import uuid
+import os
 
 # SDK imports (soft dependency)
 try:
@@ -29,6 +31,23 @@ except Exception:
     Runner = object  # type: ignore
 
 from .red_flags import evaluate_red_flags, to_structured_state
+from database import HFAgentDatabase
+
+
+_db_instance: Optional[HFAgentDatabase] = None
+
+
+def get_db() -> Optional[HFAgentDatabase]:
+    global _db_instance
+    if _db_instance is not None:
+        return _db_instance
+    if HFAgentDatabase is None:
+        return None
+    load_dotenv()
+    mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
+    print(mongodb_uri)
+    _db_instance = HFAgentDatabase(mongodb_uri)
+    return _db_instance
 
  # (stubs potentially overridden by mongo_store above)
 
@@ -86,31 +105,42 @@ def patient_context_tool(
     print(f"patient_context_tool被调用: patient_id={patient_id}, name={name}")
     now = datetime.now(timezone.utc).isoformat()
 
-    # 模拟一个现有患者分支
-    if patient_id == "P_EXISTING_001":
-        patient_doc = PatientDoc(
-            patient_id="P_EXISTING_001",
-            demographics=PatientDemographics(name=name or "Existing Patient", age=68, gender="M"),
-            created_at=now,
-            updated_at=now,
-            latest_patient_state={
-                "vitals": {"sbp": 112, "dbp": 72, "hr": 66, "weight_kg": 78.0},
-                "labs": {"creatinine_mg_dl": 1.1, "egfr": 58, "potassium_mmol_l": 4.4},
-                "symptoms": [],
-                "meds": [{"name": "sacubitril/valsartan", "dose": "49/51mg bid"}],
-            },
-        )
-    # 否则“创建”一个新患者
-    else:
-        new_id = f"P_{uuid.uuid4().hex[:8].upper()}"
-        print(new_id)
+    db = get_db()
+    patient_doc: Optional[PatientDoc] = None
+
+    if db and patient_id:
+        existing_user = db.get_user(patient_id)
+        if existing_user:
+            patient_doc = PatientDoc(
+                patient_id=existing_user["_id"],
+                demographics=PatientDemographics(name=existing_user["profile"]["name"]),
+                created_at=str(existing_user.get("created_at", now)),
+                updated_at=now,
+                latest_patient_state={
+                    "vitals": {"sbp": 112, "dbp": 72, "hr": 66, "weight_kg": 78.0},
+                    "labs": {"creatinine_mg_dl": 1.1, "egfr": 58, "potassium_mmol_l": 4.4},
+                    "symptoms": [],
+                    "meds": [{"name": "sacubitril/valsartan", "dose": "49/51mg bid"}],
+                },
+            )
+    if patient_doc is None:
+        new_id = patient_id or f"P_{uuid.uuid4().hex[:8].upper()}"
+        profile = {"name": name or "New Patient", "dob": "", "sex": ""}
+        contact = {"phone": "", "email": ""}
         patient_doc = PatientDoc(
             patient_id=new_id,
-            demographics=PatientDemographics(name=name or "New Patient"),
+            demographics=PatientDemographics(name=profile["name"]),
             created_at=now,
             updated_at=now,
             latest_patient_state=None,
         )
+        if db:
+            db.create_user(
+                user_id=new_id,
+                role="patient",
+                profile=profile,
+                contact=contact,
+            )
 
     # 将生成的 patient_doc 存储在上下文中
     print(patient_doc)
@@ -221,35 +251,3 @@ def build_hf_agent() -> Agent:
     )
 
     return main_agent
-
-
-# async def run_once(input_text: str, flat_fields: Dict[str, Any]) -> Dict[str, Any]:
-#     """
-#     Orchestrate one run: the input_text is the user message, flat_fields carries the numeric inputs
-#     to pass to the tool call (the agent can ask to call the tool).
-#     We simulate the tool call by providing a context item 'flat_fields' to the Runner.
-#     """
-#     if not HAS_AGENTS_SDK:
-#         raise RuntimeError(
-#             "openai-agents not installed. Install with `pip install openai-agents` "
-#             "and follow the Quickstart: https://openai.github.io/openai-agents-python/quickstart/"
-#         )
-
-#     agent = build_hf_agent()
-
-#     # In a simple pattern, the agent can produce a tool call; we expose args via context.
-#     # Some SDK usages pass context via Runner; here we place everything into input for simplicity.
-#     # The agent's tool function will be called with args deduced from the conversation (or directly provided).
-#     # Hint the agent to call the tool with the given structured fields
-#     import json as _json
-#     hint = (
-#         input_text
-#         + "\nUse the following structured fields when calling risk_evaluator_tool: "
-#         + _json.dumps(flat_fields)
-#     )
-#     result = await Runner.run(agent, hint)
-#     # result.final_output may be a string; tools' returns show up in trace. We return both.
-#     return {
-#         "final_output": getattr(result, "final_output", None),
-#         "result": getattr(result, "result", None),
-#     }
