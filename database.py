@@ -1,4 +1,5 @@
 import certifi
+import uuid
 from datetime import datetime, timezone
 from bson import ObjectId
 
@@ -6,13 +7,31 @@ from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from pymongo.errors import PyMongoError
 
-from dotenv import load_dotenv
-import os
-
 # Database and Collection Names
 DB_NAME = "HFAgent"
 USERS_COLLECTION = "Users"
 MESSAGES_COLLECTION = "Messages"
+
+# ========== Utility Functions ==========
+
+def generate_user_id():
+    """Generate a unique user ID in the format usr_xxxxx"""
+    unique_id = str(uuid.uuid4())[:8].replace('-', '')
+    return f"usr_{unique_id}"
+
+def validate_email(email):
+    """Basic email validation"""
+    if '@' in email and '.' in email.split('@')[1]:
+        return True
+    return False
+
+def validate_date(date_str):
+    """Validate date format YYYY-MM-DD"""
+    try:
+        datetime.strptime(date_str, "%Y-%m-%d")
+        return True
+    except ValueError:
+        return False
 
 class HFAgentDatabase:
     """Database operations for HFAgent database"""
@@ -67,6 +86,15 @@ class HFAgentDatabase:
             return user
         except PyMongoError as e:
             print(f"✗ Error fetching user: {e}")
+            raise e
+    
+    def get_user_by_email(self, email):
+        """Get a user by email address"""
+        try:
+            user = self.users.find_one({"contact.email": email})
+            return user
+        except PyMongoError as e:
+            print(f"✗ Error fetching user by email: {e}")
             raise e
     
     def get_all_users(self):
