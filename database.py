@@ -97,6 +97,15 @@ class HFAgentDatabase:
             print(f"✗ Error fetching user by email: {e}")
             raise e
     
+    def get_user_by_phone(self, phone):
+        """Get a user by phone number"""
+        try:
+            user = self.users.find_one({"contact.phone": phone})
+            return user
+        except PyMongoError as e:
+            print(f"✗ Error fetching user by phone: {e}")
+            raise e
+    
     def get_all_users(self):
         """Get all users"""
         try:
@@ -133,12 +142,24 @@ class HFAgentDatabase:
     
     # ========== Message Operations ==========
     
-    def create_message(self, user_id, user_text, assistant_text, model="gpt-4o-mini"):
-        """Create a new message document"""
+    def create_message(self, user_id, user_text, assistant_text, model="gpt-4o-mini", 
+                      message_type="conversation", metadata=None):
+        """
+        Create a new message document
+        
+        Args:
+            user_id: User ID
+            user_text: User's message text
+            assistant_text: Assistant's response text
+            model: Model name used
+            message_type: Type of message - "conversation", "recommendation", "risk_assessment", etc.
+            metadata: Additional metadata (e.g., recommendation details, risk flags)
+        """
         now = datetime.now(timezone.utc)
         
         message_doc = {
             "user_id": user_id,
+            "message_type": message_type,
             "user": {
                 "text": user_text,
                 "ts": now
@@ -151,6 +172,10 @@ class HFAgentDatabase:
             "created_at": now,
             "updated_at": now
         }
+        
+        # Add metadata if provided
+        if metadata:
+            message_doc["metadata"] = metadata
         
         try:
             result = self.messages.insert_one(message_doc)
@@ -169,10 +194,19 @@ class HFAgentDatabase:
             print(f"✗ Error fetching message: {e}")
             raise e
     
-    def get_messages_by_user(self, user_id):
-        """Get all messages for a specific user"""
+    def get_messages_by_user(self, user_id, message_type=None):
+        """
+        Get all messages for a specific user
+        
+        Args:
+            user_id: User ID
+            message_type: Optional filter by message type (e.g., "conversation", "recommendation")
+        """
         try:
-            messages = list(self.messages.find({"user_id": user_id}).sort("created_at", 1))
+            query = {"user_id": user_id}
+            if message_type:
+                query["message_type"] = message_type
+            messages = list(self.messages.find(query).sort("created_at", 1))
             return messages
         except PyMongoError as e:
             print(f"✗ Error fetching messages: {e}")
@@ -211,6 +245,100 @@ class HFAgentDatabase:
             return result
         except PyMongoError as e:
             print(f"✗ Error deleting message: {e}")
+            raise e
+    
+    # ========== Recommendation Operations ==========
+    
+    def create_recommendation(self, user_id, recommendation_text, recommendation_data, 
+                            status="generated", model="gpt-4o-mini"):
+        """
+        Create a recommendation message for a patient
+        
+        Args:
+            user_id: Patient's user ID
+            recommendation_text: Human-readable recommendation text
+            recommendation_data: Structured recommendation data (dict with medications, dosages, etc.)
+            status: Recommendation status - "generated", "pending_approval", "approved", "rejected"
+            model: Model used to generate recommendation
+        
+        Returns:
+            Inserted message ID
+        """
+        metadata = {
+            "recommendation": recommendation_data,
+            "status": status,
+            "generated_at": datetime.now(timezone.utc)
+        }
+        
+        return self.create_message(
+            user_id=user_id,
+            user_text="[System: Recommendation generated based on clinical assessment]",
+            assistant_text=recommendation_text,
+            model=model,
+            message_type="recommendation",
+            metadata=metadata
+        )
+    
+    def get_recommendations_by_user(self, user_id, status=None):
+        """
+        Get all recommendations for a specific user
+        
+        Args:
+            user_id: Patient's user ID
+            status: Optional filter by status ("generated", "approved", etc.)
+        
+        Returns:
+            List of recommendation messages
+        """
+        try:
+            query = {"user_id": user_id, "message_type": "recommendation"}
+            if status:
+                query["metadata.status"] = status
+            recommendations = list(self.messages.find(query).sort("created_at", -1))
+            return recommendations
+        except PyMongoError as e:
+            print(f"✗ Error fetching recommendations: {e}")
+            raise e
+    
+    def get_latest_recommendation(self, user_id):
+        """Get the most recent recommendation for a user"""
+        try:
+            recommendation = self.messages.find_one(
+                {"user_id": user_id, "message_type": "recommendation"},
+                sort=[("created_at", -1)]
+            )
+            return recommendation
+        except PyMongoError as e:
+            print(f"✗ Error fetching latest recommendation: {e}")
+            raise e
+    
+    def update_recommendation_status(self, message_id, new_status, approved_by=None):
+        """
+        Update the status of a recommendation
+        
+        Args:
+            message_id: Recommendation message ID
+            new_status: New status ("approved", "rejected", etc.)
+            approved_by: Optional user ID of approver (e.g., physician ID)
+        """
+        try:
+            update_data = {
+                "metadata.status": new_status,
+                "updated_at": datetime.now(timezone.utc)
+            }
+            if approved_by:
+                update_data["metadata.approved_by"] = approved_by
+                update_data["metadata.approved_at"] = datetime.now(timezone.utc)
+            
+            result = self.messages.update_one(
+                {"_id": ObjectId(message_id)},
+                {"$set": update_data}
+            )
+            if result.modified_count > 0:
+                print(f"✓ Updated recommendation status: {message_id} -> {new_status}")
+            return result
+        except PyMongoError as e:
+            print(f"✗ Error updating recommendation: {e}")
             raise e
     
     # ========== Utility Functions ==========

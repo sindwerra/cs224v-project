@@ -30,7 +30,7 @@ async def run_conv():
     while True:
         user_input = input("You: ")
         
-        if user_input == "exit":
+        if str(user_input).lower() == "exit":
             print("Goodbye!")
             break
         result = await Runner.run(
