@@ -1,10 +1,13 @@
 import random
-from typing import Optional
+import os
+from typing import Optional, List
+
+from openai_responder import OpenAIResponder
 
 class Agent:
     """Agent class for generating responses to user queries"""
     
-    def __init__(self, model: str = "placeholder-model-v1"):
+    def __init__(self, model: str = "placeholder-model-v1", file_attachments: Optional[List[str]] = None):
         """
         Initialize the Agent
         
@@ -12,6 +15,7 @@ class Agent:
             model: Model identifier for the agent (default: placeholder model)
         """
         self.model = model
+        self.open_ai_responder = self.create_openai_responder(self.model, file_attachments)
         self.placeholder_responses = [
             "Thank you for sharing that information. I'm analyzing your data and will provide recommendations shortly.",
             "I understand your concern. Based on the information provided, I recommend monitoring your symptoms closely.",
@@ -22,10 +26,11 @@ class Agent:
             "I appreciate you sharing this. Your healthcare provider will be notified of any changes needed.",
             "This information is helpful. Let's keep tracking these metrics and I'll provide updates on next steps."
         ]
+        self.thread_id = None
     
-    def generate_response(self, user_query: str, context: Optional[list] = None) -> str:
+    def generate_response(self, user_query: str) -> str:
         """
-        Generate a response to the user's query
+        Generate a LLM agent response to the user's query
         
         Args:
             user_query: The user's message/query
@@ -34,18 +39,19 @@ class Agent:
         Returns:
             Generated response string
         """
-        # For now, return a random placeholder response
-        # This will be replaced with actual LLM integration later
-        response = random.choice(self.placeholder_responses)
+
+        assert self.open_ai_responder is not None, "OpenAIResponder not initialized"
         
-        # Add some variation based on query length
-        if len(user_query) < 20:
-            response = "I understand. Can you provide more details?"
-        elif "?" in user_query:
-            response = "That's a great question. Let me provide some guidance on that."
+        response, thread_id = self.open_ai_responder.generate_response(user_query, thread_id=self.thread_id)
+        self.thread_id = thread_id
+        print(f"Thread ID: {self.thread_id}")
         
         return response
     
     def get_model(self) -> str:
         """Get the current model identifier"""
         return self.model
+    
+    def create_openai_responder(self, model: str, file_attachments: Optional[List[str]] = None) -> OpenAIResponder:
+        """Create an OpenAIResponder instance"""
+        return OpenAIResponder(model=model, api_key=os.getenv("OPENAI_API_KEY"), file_attachments=file_attachments)

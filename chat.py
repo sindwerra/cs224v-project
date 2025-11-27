@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 from database import HFAgentDatabase, generate_user_id, validate_email, validate_date
 from agent import Agent
 
+MODEL = "gpt-4o-mini"
+FILE_ATTACHMENTS = ["Heart Failure Medication Titration Protocol.pdf"]
+
 def display_chat_history(messages):
     """Display chat history with user and agent messages clearly separated"""
     if not messages:
@@ -177,7 +180,7 @@ def main():
     display_chat_history(messages)
     
     # Initialize agent
-    agent = Agent(model="placeholder-model-v1")
+    agent = Agent(model=MODEL, file_attachments=FILE_ATTACHMENTS)
     
     # Conversation loop
     print("\n" + "="*60)
