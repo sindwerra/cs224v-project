@@ -1,84 +1,107 @@
-from typing import Optional, List, Dict, Any
-
+from typing import Optional, List, Dict, Tuple
+import time
 from openai import OpenAI
 
-
 class OpenAIResponder:
-    """
-    Thin wrapper around the OpenAI Responses API.
-
-    Usage:
-        responder = OpenAIResponder(model="gpt-5")
-        reply = responder.generate_response("Hello!", context=[...])
-    """
-
     def __init__(
         self,
         model: str = "gpt-4o-mini",
         api_key: Optional[str] = None,
+        file_attachments: Optional[List[str]] = None,
+        system_prompt: str = "You are a helpful assistant."
     ) -> None:
-        """
-        Initialize the OpenAI client.
-
-        Args:
-            model: OpenAI model name (e.g. "gpt-5", "gpt-5-mini", etc.)
-            api_key: Optional explicit API key. If None, uses OPENAI_API_KEY env var.
-        """
-        client_kwargs: Dict[str, Any] = {}
-        if api_key is not None:
-            client_kwargs["api_key"] = api_key
-
-        self.client = OpenAI(**client_kwargs)
+        self.client = OpenAI(api_key=api_key)
         self.model = model
+        self.default_instructions = system_prompt
+        
+        # 1. Upload files
+        self.file_ids = []
+        if file_attachments:
+            self.file_ids = self._upload_files(file_attachments)
+
+        # 2. Create the Assistant once
+        self.assistant = self.client.beta.assistants.create(
+            name="Context Helper",
+            instructions=self.default_instructions,
+            model=self.model,
+            tools=[{"type": "file_search"}],
+        )
 
     def generate_response(
         self,
         user_query: str,
+        # We accept an existing thread_id to keep the memory alive
+        thread_id: Optional[str] = None, 
+        # We keep these for compatibility, but 'context' is less critical now
         context: Optional[List[Dict[str, str]]] = None,
         system_prompt: Optional[str] = None,
-    ) -> str:
+    ) -> Tuple[str, str]:
         """
-        Call the OpenAI Responses API and return a string reply.
-
-        Args:
-            user_query: The latest user message.
-            context: Optional list of prior messages, each like:
-                     {"role": "user" | "assistant" | "system", "content": "<text>"}
-            system_prompt: Optional system message to prepend.
-
         Returns:
-            The model's response text.
+            (response_text, thread_id)
         """
-        messages: List[Dict[str, str]] = []
+        
+        # A. Use existing thread OR create a new one
+        if not thread_id:
+            # Create a new thread (fresh memory)
+            print("Creating new conversation thread...")
+            thread = self.client.beta.threads.create()
+            thread_id = thread.id
+            
+            # If you have manual 'context' from a database, inject it here once
+            if context:
+                for msg in context:
+                    if msg['role'] == 'user':
+                        self.client.beta.threads.messages.create(
+                            thread_id=thread_id,
+                            role="user",
+                            content=msg['content']
+                        )
+        
+        # B. Add the NEW user message to the thread
+        # We attach the files to this specific message so the model can see them
+        attachments = []
+        if self.file_ids:
+             attachments = [
+                {"file_id": f_id, "tools": [{"type": "file_search"}]} 
+                for f_id in self.file_ids
+            ]
 
-        # Optional system message
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-
-        # Optional prior context (must already be in OpenAI message format)
-        if context:
-            messages.extend(context)
-
-        # Current user message
-        messages.append({"role": "user", "content": user_query})
-
-        # Responses API expects `input` to be a list of message objects
-        response = self.client.responses.create(
-            model=self.model,
-            input=messages,
+        self.client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role="user",
+            content=user_query,
+            attachments=attachments
         )
 
-        # New SDKs expose a convenience output_text field
-        # (falls back to manual extraction if needed)
-        text = getattr(response, "output_text", None)
-        if text:
-            return text.strip()
+        # C. Run the Assistant on this thread
+        run = self.client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=self.assistant.id,
+            instructions=system_prompt  # Optional override
+        )
 
-        # Fallback: walk the structured output
-        try:
-            first_output = response.output[0]
-            first_content = first_output.content[0]
-            return first_content.text.strip()
-        except Exception:
-            # Very defensive: last resort stringification
-            return str(response)
+        # D. Poll for result
+        print(f"Processing on Thread {thread_id}...")
+        while run.status in ['queued', 'in_progress', 'cancelling']:
+            time.sleep(1)
+            run = self.client.beta.threads.runs.retrieve(
+                thread_id=thread_id,
+                run_id=run.id
+            )
+
+        if run.status == 'completed':
+            messages = self.client.beta.threads.messages.list(thread_id=thread_id)
+            # OpenAI returns newest first; we want the latest assistant reply
+            new_reply = messages.data[0].content[0].text.value
+            return new_reply, thread_id
+        else:
+            return f"Error: {run.status}", thread_id
+
+    def _upload_files(self, file_paths: List[str]) -> List[str]:
+        ids = []
+        for path in file_paths:
+            with open(path, "rb") as f:
+                file_obj = self.client.files.create(file=f, purpose="assistants")
+            ids.append(file_obj.id)
+        return ids

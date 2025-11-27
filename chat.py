@@ -6,6 +6,7 @@ from database import HFAgentDatabase, generate_user_id, validate_email, validate
 from agent import Agent
 
 MODEL = "gpt-4o-mini"
+FILE_ATTACHMENTS = ["Heart Failure Medication Titration Protocol.pdf"]
 
 def display_chat_history(messages):
     """Display chat history with user and agent messages clearly separated"""
@@ -179,7 +180,7 @@ def main():
     display_chat_history(messages)
     
     # Initialize agent
-    agent = Agent(model=MODEL)
+    agent = Agent(model=MODEL, file_attachments=FILE_ATTACHMENTS)
     
     # Conversation loop
     print("\n" + "="*60)
