@@ -133,7 +133,7 @@ class HFAgentDatabase:
     
     # ========== Message Operations ==========
     
-    def create_message(self, user_id, user_text, assistant_text, model="gpt-4o-mini"):
+    def create_message(self, user_id, user_text, assistant_text, model="gpt-4o-mini", thread_id=None):
         """Create a new message document"""
         now = datetime.now(timezone.utc)
         
@@ -151,6 +151,10 @@ class HFAgentDatabase:
             "created_at": now,
             "updated_at": now
         }
+        
+        # Add thread_id if provided
+        if thread_id is not None:
+            message_doc["thread_id"] = thread_id
         
         try:
             result = self.messages.insert_one(message_doc)
@@ -176,6 +180,15 @@ class HFAgentDatabase:
             return messages
         except PyMongoError as e:
             print(f"✗ Error fetching messages: {e}")
+            raise e
+    
+    def get_messages_by_thread_id(self, thread_id):
+        """Get all messages for a specific thread_id, sorted chronologically"""
+        try:
+            messages = list(self.messages.find({"thread_id": thread_id}).sort("created_at", 1))
+            return messages
+        except PyMongoError as e:
+            print(f"✗ Error fetching messages by thread_id: {e}")
             raise e
     
     def get_all_messages(self):
