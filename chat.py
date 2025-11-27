@@ -106,9 +106,14 @@ def main():
     db.ping()
     
     # CLI
-    print("\n" + "="*60)
-    print("HF Agent CLI")
-    print("="*60)
+    print("\n" + "="*120)
+    print("Heart Failure Agent CLI")
+    print(
+        "\nA conversational agent that safely guides heart failure patients "
+        "through medication titration while monitoring for adverse effects "
+        "and determining when clinical escalation is necessary"
+    )
+    print("="*120)
     
     # Prompt for email
     while True:
@@ -176,7 +181,7 @@ def main():
     
     # Conversation loop
     print("\n" + "="*60)
-    print("Conversation")
+    print("Current Session")
     print("="*60)
     print("\nType your message (or 'exit'/'quit' to end conversation):")
     
