@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 from database import HFAgentDatabase, generate_user_id, validate_email, validate_date
 from agent import Agent
 
+MODEL = "gpt-4o-mini"
+
 def display_chat_history(messages):
     """Display chat history with user and agent messages clearly separated"""
     if not messages:
@@ -177,7 +179,7 @@ def main():
     display_chat_history(messages)
     
     # Initialize agent
-    agent = Agent(model="placeholder-model-v1")
+    agent = Agent(model=MODEL)
     
     # Conversation loop
     print("\n" + "="*60)
