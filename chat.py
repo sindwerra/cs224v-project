@@ -133,6 +133,28 @@ def main():
         print(f"  User ID: {user['_id']}")
         print(f"  Role: {user['role']}")
         user_id = user['_id']
+        
+        # Check if user has previous messages
+        messages = db.get_messages_by_user(user_id)
+        load_previous_messages = False
+        
+        if messages:
+            # User has previous messages, ask if they want to continue
+            while True:
+                continue_choice = input("\nWould you like to continue your existing conversation? (yes/no): ").strip().lower()
+                if continue_choice in ['yes', 'y', 'no', 'n']:
+                    load_previous_messages = continue_choice in ['yes', 'y']
+                    break
+                print("Invalid input. Please enter 'yes' or 'no'.")
+            
+            if load_previous_messages:
+                # Load and display chat history
+                display_chat_history(messages)
+            else:
+                print("\nStarting a new conversation...")
+        else:
+            # Brand new user, no previous messages
+            print("\nStarting a new conversation...")
     else:
         print(f"\n✗ No user found with email: {email}")
         create_profile = input("\nWould you like to create a new user profile? (yes/no): ").strip().lower()
@@ -174,10 +196,6 @@ def main():
         else:
             print("\nUser profile creation cancelled.")
             return
-    
-    # Load and display chat history
-    messages = db.get_messages_by_user(user_id)
-    display_chat_history(messages)
     
     # Initialize agent
     agent = Agent(model=MODEL, file_attachments=FILE_ATTACHMENTS)
