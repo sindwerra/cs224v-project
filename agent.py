@@ -7,12 +7,14 @@ from openai_responder import OpenAIResponder
 class Agent:
     """Agent class for generating responses to user queries"""
     
-    def __init__(self, model: str = "placeholder-model-v1", file_attachments: Optional[List[str]] = None):
+    def __init__(self, model: str = "placeholder-model-v1", file_attachments: Optional[List[str]] = None, thread_id: Optional[str] = None):
         """
         Initialize the Agent
         
         Args:
             model: Model identifier for the agent (default: placeholder model)
+            file_attachments: Optional list of file paths to attach
+            thread_id: Optional thread_id to continue an existing conversation
         """
         self.model = model
         self.open_ai_responder = self.create_openai_responder(self.model, file_attachments)
@@ -26,7 +28,7 @@ class Agent:
             "I appreciate you sharing this. Your healthcare provider will be notified of any changes needed.",
             "This information is helpful. Let's keep tracking these metrics and I'll provide updates on next steps."
         ]
-        self.thread_id = None
+        self.thread_id = thread_id
     
     def generate_response(self, user_query: str) -> str:
         """

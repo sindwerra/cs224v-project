@@ -182,6 +182,15 @@ class HFAgentDatabase:
             print(f"✗ Error fetching messages: {e}")
             raise e
     
+    def get_messages_by_thread_id(self, thread_id):
+        """Get all messages for a specific thread_id, sorted chronologically"""
+        try:
+            messages = list(self.messages.find({"thread_id": thread_id}).sort("created_at", 1))
+            return messages
+        except PyMongoError as e:
+            print(f"✗ Error fetching messages by thread_id: {e}")
+            raise e
+    
     def get_all_messages(self):
         """Get all messages"""
         try:

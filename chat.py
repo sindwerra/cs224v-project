@@ -137,6 +137,7 @@ def main():
         # Check if user has previous messages
         messages = db.get_messages_by_user(user_id)
         load_previous_messages = False
+        thread_id = None
         
         if messages:
             # User has previous messages, ask if they want to continue
@@ -148,13 +149,28 @@ def main():
                 print("Invalid input. Please enter 'yes' or 'no'.")
             
             if load_previous_messages:
-                # Load and display chat history
-                display_chat_history(messages)
+                # Find the latest message with a thread_id
+                for msg in reversed(messages):  # Start from the most recent
+                    if msg.get('thread_id'):
+                        thread_id = msg['thread_id']
+                        break
+                
+                if thread_id:
+                    # Only load messages with the same thread_id (latest conversation)
+                    messages = db.get_messages_by_thread_id(thread_id)
+                    display_chat_history(messages)
+                    print(f"\n✓ Continuing conversation with thread_id: {thread_id}")
+                else:
+                    # No thread_id found in any message, start fresh
+                    print("\n⚠ No previous conversation thread found. Starting a new conversation...")
+                    thread_id = None
             else:
                 print("\nStarting a new conversation...")
+                thread_id = None
         else:
             # Brand new user, no previous messages
             print("\nStarting a new conversation...")
+            thread_id = None
     else:
         print(f"\n✗ No user found with email: {email}")
         create_profile = input("\nWould you like to create a new user profile? (yes/no): ").strip().lower()
@@ -190,6 +206,7 @@ def main():
                 print(f"  User ID: {user_id}")
                 print(f"  Name: {profile_data['name']}")
                 print(f"  Role: {profile_data['role']}")
+                thread_id = None  # New user, no previous conversation
             except Exception as e:
                 print(f"\n✗ Error creating user: {e}")
                 return
@@ -197,8 +214,8 @@ def main():
             print("\nUser profile creation cancelled.")
             return
     
-    # Initialize agent
-    agent = Agent(model=MODEL, file_attachments=FILE_ATTACHMENTS)
+    # Initialize agent with thread_id if continuing conversation
+    agent = Agent(model=MODEL, file_attachments=FILE_ATTACHMENTS, thread_id=thread_id)
     
     # Conversation loop
     print("\n" + "="*60)
