@@ -229,7 +229,8 @@ def main():
                     user_id=user_id,
                     user_text=user_query,
                     assistant_text=assistant_response,
-                    model=agent.get_model()
+                    model=agent.get_model(),
+                    thread_id=agent.thread_id
                 )
                 
                 # Display the exchange
