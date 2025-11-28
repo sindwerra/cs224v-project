@@ -5,6 +5,9 @@ from dotenv import load_dotenv
 from database import HFAgentDatabase, generate_user_id, validate_email, validate_date
 from agent import Agent
 
+from rich.console import Console
+from rich.markdown import Markdown
+
 MODEL = "gpt-4o-mini"
 FILE_ATTACHMENTS = ["Heart Failure Medication Titration Protocol.pdf"]
 
@@ -107,6 +110,8 @@ def main():
     
     # Test connection
     db.ping()
+
+    console = Console()
     
     # CLI
     print("\n" + "="*120)
@@ -252,7 +257,8 @@ def main():
                 
                 # Display the exchange
                 print(f"\n[AGENT] [Model: {agent.get_model()}]")
-                print(f"  {assistant_response}")
+                console.print(Markdown(assistant_response))
+                # print(f"  {assistant_response}")
             except Exception as e:
                 print(f"\n✗ Error saving message: {e}")
                 # Still display the response even if saving fails
