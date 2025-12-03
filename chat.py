@@ -227,6 +227,30 @@ def main():
     print("Current Session")
     print("="*60)
     print("\nType your message (or 'exit'/'quit' to end conversation):")
+
+    # Proactively prompt for blood pressure and symptoms before user input
+    initial_prompt = (
+        "Before we continue, please share your most recent blood pressure reading "
+        "(systolic/diastolic) and any new or worsening symptoms (e.g., dizziness, "
+        "shortness of breath, swelling, chest discomfort). I need this information "
+        "to follow the Heart Failure Medication Titration Protocol and provide safe "
+        "titration recommendations or monitoring guidance."
+    )
+
+    print(f"\n[AGENT] [Model: {agent.get_model()}]")
+    console.print(Markdown(initial_prompt))
+
+    # Record the proactive assistant message so the conversation history stays consistent
+    try:
+        db.create_message(
+            user_id=user_id,
+            user_text=None,
+            assistant_text=initial_prompt,
+            model=agent.get_model(),
+            thread_id=agent.thread_id
+        )
+    except Exception as e:
+        print(f"\n✗ Error saving initial prompt: {e}")
     
     while True:
         # User input
