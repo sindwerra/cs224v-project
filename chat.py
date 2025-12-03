@@ -16,6 +16,8 @@ def display_chat_history(messages):
     if not messages:
         print("\n--- No previous messages ---")
         return
+
+    console = Console()
     
     print("\n" + "="*60)
     print("Chat History")
@@ -45,7 +47,7 @@ def display_chat_history(messages):
             
             model = msg.get('assistant', {}).get('meta', {}).get('model', 'unknown')
             print(f"\n[AGENT] ({assistant_time}) [Model: {model}]")
-            print(f"  {assistant_text}")
+            console.print(Markdown(assistant_text))
 
 def prompt_user_profile(email):
     """Prompt user for profile information"""
@@ -286,8 +288,8 @@ def main():
             except Exception as e:
                 print(f"\n✗ Error saving message: {e}")
                 # Still display the response even if saving fails
-                print(f"\n[AGENT] [Model: {agent.get_model()}]")
-                print(f"  {assistant_response}")
+                console.print(f"\n[AGENT] [Model: {agent.get_model()}]")
+                console.print(Markdown(assistant_response))
         except Exception as e:
             print(f"\n✗ Error generating response: {e}")
             continue
