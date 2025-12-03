@@ -8,20 +8,42 @@ class OpenAIResponder:
         model: str = "gpt-4o-mini",
         api_key: Optional[str] = None,
         file_attachments: Optional[List[str]] = None,
-        system_prompt: str = "You are a helpful assistant."
+        system_prompt: Optional[str] = None
     ) -> None:
         self.client = OpenAI(api_key=api_key)
         self.model = model
-        self.default_instructions = system_prompt
         
         # 1. Upload files
         self.file_ids = []
         if file_attachments:
             self.file_ids = self._upload_files(file_attachments)
+        
+        # 2. Set default instructions that prioritize attached files
+        if system_prompt:
+            self.default_instructions = system_prompt
+        elif file_attachments:
+            # If files are attached but no custom prompt, create one that prioritizes them
+            file_names = ", ".join(file_attachments)
+            self.default_instructions = f"""You are a medical assistant specializing in heart failure medication management. 
 
-        # 2. Create the Assistant once
+CRITICAL: You have access to the following document(s): {file_names}
+
+ALWAYS prioritize information from these attached document(s) as your PRIMARY source of information. When answering questions about heart failure medication titration, dosing, protocols, or clinical guidelines:
+
+1. FIRST search and reference the attached document(s) for specific information
+2. ONLY use general medical knowledge if the specific information is not found in the attached document(s)
+3. When referencing the protocol, cite specific sections or page numbers when possible
+4. If the user asks about information that contradicts the protocol, clarify that you are following the attached protocol document
+
+Do not rely on general medical knowledge when the protocol document contains specific guidance."""
+        else:
+            self.default_instructions = "You are a helpful assistant."
+
+        # 3. Create the Assistant with file_search tool enabled
+        # Files are attached to each message, and the system prompt ensures they're prioritized
+        # This approach works reliably across OpenAI SDK versions
         self.assistant = self.client.beta.assistants.create(
-            name="Context Helper",
+            name="Heart Failure Medication Agent",
             instructions=self.default_instructions,
             model=self.model,
             tools=[{"type": "file_search"}],
@@ -59,10 +81,11 @@ class OpenAIResponder:
                         )
         
         # B. Add the NEW user message to the thread
-        # We attach the files to this specific message so the model can see them
+        # Attach files to each message to ensure they're available for file_search
+        # The system prompt ensures the agent prioritizes these files
         attachments = []
         if self.file_ids:
-             attachments = [
+            attachments = [
                 {"file_id": f_id, "tools": [{"type": "file_search"}]} 
                 for f_id in self.file_ids
             ]
