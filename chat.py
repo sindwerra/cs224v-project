@@ -230,14 +230,26 @@ def main():
     print("="*60)
     print("\nType your message (or 'exit'/'quit' to end conversation):")
 
-    # Proactively prompt for blood pressure and symptoms before user input
-    initial_prompt = (
-        "Before we continue, please share your most recent blood pressure reading "
-        "(systolic/diastolic) and any new or worsening symptoms (e.g., dizziness, "
-        "shortness of breath, swelling, chest discomfort). I need this information "
-        "to follow the Heart Failure Medication Titration Protocol and provide safe "
-        "titration recommendations or monitoring guidance."
-    )
+    # Set initial prompt based on whether this is a new or continuing conversation
+    if thread_id is None:
+        # New conversation: prompt for condition and medication doses
+        initial_prompt = (
+            "Welcome! To get started, please share:\n\n"
+            "1. Your current condition (e.g., any symptoms you're experiencing, "
+            "how you've been feeling)\n"
+            "2. Your current medication doses (please list each medication and its current dose)\n\n"
+            "This information will help me provide personalized guidance based on the "
+            "Heart Failure Medication Titration Protocol."
+        )
+    else:
+        # Continuing conversation: check-in prompt for blood pressure and symptoms
+        initial_prompt = (
+            "Before we continue, please share your most recent blood pressure reading "
+            "(systolic/diastolic) and any new or worsening symptoms (e.g., dizziness, "
+            "shortness of breath, swelling, chest discomfort). I need this information "
+            "to follow the Heart Failure Medication Titration Protocol and provide safe "
+            "titration recommendations or monitoring guidance."
+        )
 
     print(f"\n[AGENT] [Model: {agent.get_model()}]")
     console.print(Markdown(initial_prompt))
