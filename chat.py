@@ -198,8 +198,7 @@ def main():
         if messages:
             # User has previous messages, ask if they want to continue
             load_previous_messages = Confirm.ask(
-                "\n[bold yellow]Would you like to continue your existing conversation?[/bold yellow]",
-                default=True
+                "\n[bold yellow]Would you like to continue your existing conversation?[/bold yellow]"
             )
             
             if load_previous_messages:
@@ -234,8 +233,7 @@ def main():
         ))
         
         create_profile = Confirm.ask(
-            "\n[bold yellow]Would you like to create a new user profile?[/bold yellow]",
-            default=True
+            "\n[bold yellow]Would you like to create a new user profile?[/bold yellow]"
         )
         
         if create_profile:
