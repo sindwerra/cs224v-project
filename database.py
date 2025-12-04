@@ -158,7 +158,7 @@ class HFAgentDatabase:
         
         try:
             result = self.messages.insert_one(message_doc)
-            print(f"✓ Created message: {result.inserted_id} for user: {user_id}")
+            # print(f"✓ Created message: {result.inserted_id} for user: {user_id}")
             return result.inserted_id
         except PyMongoError as e:
             print(f"✗ Error creating message: {e}")

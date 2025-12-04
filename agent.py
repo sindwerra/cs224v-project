@@ -46,7 +46,6 @@ class Agent:
         
         response, thread_id = self.open_ai_responder.generate_response(user_query, thread_id=self.thread_id)
         self.thread_id = thread_id
-        print(f"Thread ID: {self.thread_id}")
         
         return response
     

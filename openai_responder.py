@@ -113,7 +113,7 @@ ONGOING REQUIREMENT: never provide titration advice without confirming the lates
         )
 
         # D. Poll for result
-        print(f"Processing on Thread {thread_id}...")
+        # print(f"Processing on Thread {thread_id}...")
         while run.status in ['queued', 'in_progress', 'cancelling']:
             time.sleep(1)
             run = self.client.beta.threads.runs.retrieve(
