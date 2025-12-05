@@ -309,12 +309,13 @@ def main():
             "Heart Failure Medication Titration Protocol."
         )
     else:
-        # Continuing conversation: check-in prompt for blood pressure and symptoms
+        # Continuing conversation: check-in prompt for medications, blood pressure and symptoms
         initial_prompt = (
-            "Before we continue, please share your most recent blood pressure reading "
-            "(systolic/diastolic) and any new or worsening symptoms (e.g., dizziness, "
-            "shortness of breath, swelling, chest discomfort). I need this information "
-            "to follow the Heart Failure Medication Titration Protocol and provide safe "
+            "Before we continue, please share:\n\n"
+            "1. Your current titration regime (please list each medication and its current dose)\n"
+            "2. Your most recent blood pressure reading (systolic/diastolic)\n"
+            "3. Any new or worsening symptoms (e.g., dizziness, shortness of breath, swelling, chest discomfort)\n\n"
+            "I need this information to follow the Heart Failure Medication Titration Protocol and provide safe "
             "titration recommendations or monitoring guidance."
         )
 
