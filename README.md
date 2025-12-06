@@ -125,3 +125,22 @@ The program will:
 - Chat history is automatically saved to the database
 - Type `exit` or `quit` to end the session
 - Enjoy!
+
+## Configuration
+
+### Adding File Attachments to RAG
+
+The agent uses Retrieval Augmented Generation (RAG) to access knowledge from attached files. To add additional files to the RAG system:
+
+1. Place your file (PDF, text, etc.) in the project root directory
+2. Open `chat.py` and locate the `FILE_ATTACHMENTS` list (around line 18)
+3. Add the filename to the list:
+
+```python
+FILE_ATTACHMENTS = [
+    "Heart Failure Medication Titration Protocol.pdf",
+    "your-additional-file.pdf"  # Add your file here
+]
+```
+
+The agent will automatically use these files to provide more informed responses during conversations.
