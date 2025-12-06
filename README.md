@@ -133,7 +133,7 @@ The program will:
 The agent uses Retrieval Augmented Generation (RAG) to access knowledge from attached files. To add additional files to the RAG system:
 
 1. Place your file (PDF, text, etc.) in the project root directory
-2. Open `chat.py` and locate the `FILE_ATTACHMENTS` list (around line 18)
+2. Open `chat.py` and locate the `FILE_ATTACHMENTS` list ([source](https://github.com/sindwerra/cs224v-project/blob/08fac4708da40102cbf82009514a34e5c7f86b22/chat.py#L18))
 3. Add the filename to the list:
 
 ```python
