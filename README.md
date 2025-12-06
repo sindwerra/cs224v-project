@@ -110,6 +110,10 @@ Once you have completed the installation steps, run the main chat interface:
 python chat.py
 ```
 
+#### Your entry point should look like this:
+<img width="1063" height="176" alt="Screenshot 2025-12-05 at 4 27 55 PM" src="https://github.com/user-attachments/assets/ff58e409-b96b-4f59-a74f-6ec417e93429" />
+
+
 The program will:
 1. Connect to your MongoDB database
 2. Prompt you to either create a new user or continue with an existing user
